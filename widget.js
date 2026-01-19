@@ -1,273 +1,337 @@
-(() => {
-  // ====== CONFIG ======
-  const DEFAULT_API_BASE = "https://ai-widget-backend.onrender.com";
-  const DEFAULT_TITLE = "AI Service Recommender";
+(function () {
+  // =========================================
+  // SaaS-style config (reads from the script tag)
+  // =========================================
+  const scriptTag =
+    document.currentScript ||
+    document.querySelector('script[src*="widget.js"]');
 
-  // ====== HELPERS ======
-  const el = (tag, attrs = {}, children = []) => {
-    const node = document.createElement(tag);
-    Object.entries(attrs).forEach(([k, v]) => {
-      if (k === "style") Object.assign(node.style, v);
-      else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
-      else if (k === "class") node.className = v;
-      else node.setAttribute(k, v);
-    });
-    (Array.isArray(children) ? children : [children]).forEach((c) => {
-      if (c == null) return;
-      node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-    });
-    return node;
-  };
+  const API_BASE = scriptTag?.dataset.apiBase || "https://ai-widget-backend.onrender.com";
+  const API_KEY  = scriptTag?.dataset.apiKey  || "demo";
+  const POSITION = scriptTag?.dataset.position || "bottom-right";
+  const BRAND    = scriptTag?.dataset.brand || "AI Service Recommender";
 
-  const injectStylesOnce = (() => {
-    let done = false;
-    return () => {
-      if (done) return;
-      done = true;
+  // Optional: show a small label on the launcher button
+  const LAUNCHER_LABEL = scriptTag?.dataset.launcherLabel || "AI Recommender";
 
-      const css = `
-        .aiw-launch {
-          position: fixed; right: 18px; bottom: 18px; z-index: 999999;
-          border: none; border-radius: 999px; padding: 12px 14px;
-          background: #111; color: #fff; font: 14px/1.2 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;
-          box-shadow: 0 10px 25px rgba(0,0,0,.18);
-          cursor: pointer;
-        }
-        .aiw-launch:hover { transform: translateY(-1px); }
-        .aiw-backdrop {
-          position: fixed; inset: 0; z-index: 999998;
-          background: rgba(0,0,0,.35);
-          display: none;
-        }
-        .aiw-panel {
-          position: fixed; right: 18px; bottom: 70px; z-index: 999999;
-          width: 360px; max-width: calc(100vw - 36px);
-          background: #fff; border-radius: 14px;
-          box-shadow: 0 16px 40px rgba(0,0,0,.22);
-          overflow: hidden;
-          display: none;
-          font: 14px/1.35 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;
-          color: #111;
-        }
-        .aiw-header {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 12px 14px; border-bottom: 1px solid #eee;
-          background: #fff;
-        }
-        .aiw-title { font-weight: 700; }
-        .aiw-close {
-          border: none; background: transparent; cursor: pointer;
-          font-size: 18px; line-height: 1; padding: 6px 8px; border-radius: 8px;
-        }
-        .aiw-close:hover { background: #f3f3f3; }
-        .aiw-body { padding: 12px 14px; }
-        .aiw-field { margin-bottom: 10px; }
-        .aiw-input {
-          width: 100%; box-sizing: border-box;
-          padding: 10px 10px; border: 1px solid #ddd; border-radius: 10px;
-          outline: none;
-        }
-        .aiw-input:focus { border-color: #999; }
-        .aiw-btn {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #111; background: #111; color: #fff;
-          border-radius: 10px; cursor: pointer; font-weight: 600;
-        }
-        .aiw-btn:disabled { opacity: .6; cursor: not-allowed; }
-        .aiw-status {
-          margin-top: 10px;
-          font-size: 13px;
-          color: #333;
-          min-height: 18px;
-        }
-        .aiw-error {
-          margin-top: 10px;
-          padding: 10px;
-          background: #fff3f3;
-          border: 1px solid #ffd1d1;
-          color: #a40000;
-          border-radius: 10px;
-          display: none;
-        }
-        .aiw-results { margin-top: 10px; }
-        .aiw-results ul { margin: 8px 0 0 18px; }
-        .aiw-footer {
-          padding: 10px 14px;
-          border-top: 1px solid #eee;
-          display: flex; justify-content: space-between; align-items: center;
-          background: #fff;
-          font-size: 12px;
-          color: #666;
-        }
-        .aiw-powered a { color: #111; text-decoration: none; font-weight: 600; }
-        .aiw-powered a:hover { text-decoration: underline; }
-        .aiw-spinner {
-          display: inline-block;
-          width: 12px; height: 12px;
-          border: 2px solid #ccc;
-          border-top-color: #111;
-          border-radius: 50%;
-          animation: aiw-spin 0.8s linear infinite;
-          vertical-align: -2px;
-          margin-right: 8px;
-        }
-        @keyframes aiw-spin { to { transform: rotate(360deg); } }
-      `;
+  // =========================================
+  // Helpers
+  // =========================================
+  const $ = (tag) => document.createElement(tag);
 
-      const style = document.createElement("style");
-      style.setAttribute("data-aiw", "true");
-      style.textContent = css;
-      document.head.appendChild(style);
+  function applyPosition(el, position) {
+    const positions = {
+      "bottom-right": { bottom: "20px", right: "20px" },
+      "bottom-left":  { bottom: "20px", left: "20px" },
+      "top-right":    { top: "20px", right: "20px" },
+      "top-left":     { top: "20px", left: "20px" },
     };
-  })();
+    Object.assign(el.style, positions[position] || positions["bottom-right"]);
+  }
 
-  // ====== BOOT ======
-  const script = document.currentScript;
-  const API_BASE = script?.getAttribute("data-api-base") || DEFAULT_API_BASE;
-  const CLIENT_ID = script?.getAttribute("data-client-id") || "demo";
-  const API_KEY = script?.getAttribute("data-api-key") || ""; // optional
-  const BRAND_NAME = script?.getAttribute("data-brand-name") || "Your Company";
-  const BRAND_URL = script?.getAttribute("data-brand-url") || "#";
-  const TITLE = script?.getAttribute("data-title") || DEFAULT_TITLE;
+  function safeText(str) {
+    return (str ?? "").toString().trim();
+  }
 
-  injectStylesOnce();
+  // =========================================
+  // Styles (minimal, self-contained)
+  // =========================================
+  const style = $("style");
+  style.textContent = `
+    .aiw-launcher {
+      position: fixed;
+      z-index: 999999;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 16px;
+      font: 14px/1.2 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(0,0,0,.18);
+      background: #111;
+      color: #fff;
+    }
 
-  // Prevent double-mount if the script is included twice
-  if (window.__AIW_MOUNTED__) return;
-  window.__AIW_MOUNTED__ = true;
+    .aiw-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 999998;
+      background: rgba(0,0,0,.25);
+      display: none;
+    }
 
-  const backdrop = el("div", { class: "aiw-backdrop" });
-  const panel = el("div", { class: "aiw-panel" });
+    .aiw-panel {
+      position: fixed;
+      z-index: 999999;
+      width: 360px;
+      max-width: calc(100vw - 24px);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 12px 30px rgba(0,0,0,.25);
+      overflow: hidden;
+      display: none;
+      font: 14px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    }
 
-  const close = () => {
-    panel.style.display = "none";
-    backdrop.style.display = "none";
-  };
-  const open = () => {
-    panel.style.display = "block";
+    .aiw-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid #eee;
+      background: #fafafa;
+      font-weight: 700;
+    }
+
+    .aiw-close {
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 6px 8px;
+    }
+
+    .aiw-body {
+      padding: 14px;
+    }
+
+    .aiw-input {
+      width: 100%;
+      padding: 10px 10px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      outline: none;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .aiw-btn {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .aiw-btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .aiw-status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #333;
+    }
+
+    .aiw-error {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #b00020;
+    }
+
+    .aiw-list {
+      margin: 10px 0 0;
+      padding-left: 18px;
+    }
+
+    .aiw-footer {
+      padding: 10px 14px 14px;
+      border-top: 1px solid #eee;
+      background: #fff;
+      font-size: 12px;
+      opacity: .7;
+    }
+
+    .aiw-footer a { color: inherit; }
+  `;
+  document.head.appendChild(style);
+
+  // =========================================
+  // Build UI (Launcher, Backdrop, Panel)
+  // =========================================
+  const launcher = $("button");
+  launcher.className = "aiw-launcher";
+  launcher.textContent = LAUNCHER_LABEL;
+  applyPosition(launcher, POSITION);
+
+  const backdrop = $("div");
+  backdrop.className = "aiw-backdrop";
+
+  const panel = $("div");
+  panel.className = "aiw-panel";
+  // Panel sits above launcher, same corner
+  applyPosition(panel, POSITION);
+  // Nudge panel up a bit when bottom positioned
+  if (POSITION.startsWith("bottom")) panel.style.bottom = "70px";
+  if (POSITION.startsWith("top")) panel.style.top = "70px";
+
+  const header = $("div");
+  header.className = "aiw-header";
+
+  const title = $("div");
+  title.textContent = BRAND;
+
+  const closeBtn = $("button");
+  closeBtn.className = "aiw-close";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.textContent = "×";
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  const body = $("div");
+  body.className = "aiw-body";
+
+  const companyName = $("input");
+  companyName.className = "aiw-input";
+  companyName.placeholder = "Company name (optional)";
+  companyName.value = scriptTag?.dataset.companyName || "";
+
+  const industry = $("input");
+  industry.className = "aiw-input";
+  industry.placeholder = "Industry (e.g. digital marketing)";
+
+  const companySize = $("input");
+  companySize.className = "aiw-input";
+  companySize.placeholder = "Company size (e.g. small, medium, enterprise)";
+
+  const goal = $("input");
+  goal.className = "aiw-input";
+  goal.placeholder = "Goal (e.g. lead generation)";
+
+  const btn = $("button");
+  btn.className = "aiw-btn";
+  btn.textContent = "Get recommendations";
+
+  const status = $("div");
+  status.className = "aiw-status";
+
+  const errorBox = $("div");
+  errorBox.className = "aiw-error";
+
+  const resultsLabel = $("div");
+  resultsLabel.style.marginTop = "10px";
+  resultsLabel.style.fontWeight = "700";
+  resultsLabel.textContent = "Recommended services:";
+  resultsLabel.style.display = "none";
+
+  const list = $("ul");
+  list.className = "aiw-list";
+  list.style.display = "none";
+
+  body.appendChild(companyName);
+  body.appendChild(industry);
+  body.appendChild(companySize);
+  body.appendChild(goal);
+  body.appendChild(btn);
+  body.appendChild(status);
+  body.appendChild(errorBox);
+  body.appendChild(resultsLabel);
+  body.appendChild(list);
+
+  const footer = $("div");
+  footer.className = "aiw-footer";
+  footer.innerHTML = `Powered by <a href="https://YOURDOMAIN.com" target="_blank" rel="noreferrer">Tamed Media</a> • client: <strong>${API_KEY}</strong>`;
+
+  panel.appendChild(header);
+  panel.appendChild(body);
+  panel.appendChild(footer);
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(panel);
+  document.body.appendChild(launcher);
+
+  // =========================================
+  // Open/Close (THIS is the part you fixed before)
+  // =========================================
+  function open() {
     backdrop.style.display = "block";
-  };
+    panel.style.display = "block";
+  }
 
+  function close() {
+    backdrop.style.display = "none";
+    panel.style.display = "none";
+  }
+
+  launcher.addEventListener("click", open);
+  closeBtn.addEventListener("click", close);
+
+  // Clicking the backdrop closes the modal
+  // (This is the line you asked about earlier—YES this is correct.)
   backdrop.addEventListener("click", close);
 
-  const companyInput = el("input", { class: "aiw-input", placeholder: "Company name" });
-  const industryInput = el("input", { class: "aiw-input", placeholder: "Industry (e.g. publishing)" });
-  const sizeInput = el("input", { class: "aiw-input", placeholder: "Company size (small/medium/enterprise)" });
-  const goalInput = el("input", { class: "aiw-input", placeholder: "Goal (e.g. lead generation)" });
-
-  const btn = el("button", { class: "aiw-btn" }, "Get recommendations");
-
-  const status = el("div", { class: "aiw-status" });
-  const errorBox = el("div", { class: "aiw-error" });
-  const results = el("div", { class: "aiw-results" });
-
-  const setLoading = (isLoading) => {
-    btn.disabled = isLoading;
-    if (isLoading) {
-      status.innerHTML = "";
-      status.appendChild(el("span", { class: "aiw-spinner" }));
-      status.appendChild(document.createTextNode("Getting recommendations…"));
-    } else {
-      status.textContent = "";
-    }
-  };
-
-  const showError = (msg) => {
-    errorBox.style.display = "block";
-    errorBox.textContent = msg;
-  };
-  const clearError = () => {
-    errorBox.style.display = "none";
+  // =========================================
+  // API call
+  // =========================================
+  async function getRecommendations() {
     errorBox.textContent = "";
-  };
-
-  const renderResults = (items) => {
-    results.innerHTML = "";
-    if (!items || !items.length) return;
-
-    results.appendChild(el("div", { style: { fontWeight: "700", marginTop: "8px" } }, "Recommended services:"));
-    const ul = el("ul");
-    items.forEach((s) => ul.appendChild(el("li", {}, s)));
-    results.appendChild(ul);
-  };
-
-  btn.addEventListener("click", async () => {
-    clearError();
-    results.innerHTML = "";
+    status.textContent = "";
+    list.innerHTML = "";
+    list.style.display = "none";
+    resultsLabel.style.display = "none";
 
     const payload = {
-      company_name: companyInput.value.trim(),
-      industry: industryInput.value.trim(),
-      company_size: sizeInput.value.trim(),
-      goal: goalInput.value.trim(),
+      company_name: safeText(companyName.value),
+      industry: safeText(industry.value),
+      company_size: safeText(companySize.value),
+      goal: safeText(goal.value),
     };
 
-    // Basic validation
-    if (!payload.company_name || !payload.industry || !payload.company_size || !payload.goal) {
-      showError("Please fill in all fields.");
+    // Light validation
+    if (!payload.industry || !payload.company_size || !payload.goal) {
+      errorBox.textContent = "Please fill in Industry, Company size, and Goal.";
       return;
     }
 
-    setLoading(true);
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    status.textContent = "Thinking…";
 
     try {
-      const headers = { "Content-Type": "application/json" };
-      if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
-
       const res = await fetch(`${API_BASE}/recommend`, {
         method: "POST",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${API_KEY}`,
+        },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`API error (${res.status}). ${txt || "Please try again."}`);
+        // Show useful error text
+        const text = await res.text().catch(() => "");
+        throw new Error(`API error (${res.status}). ${text || ""}`.trim());
       }
 
       const data = await res.json();
-      renderResults(data.recommended_services || []);
+
+      const items = data.recommended_services || [];
+      status.textContent = items.length ? "" : "No recommendations returned.";
+
+      if (items.length) {
+        resultsLabel.style.display = "block";
+        list.style.display = "block";
+        items.forEach((x) => {
+          const li = $("li");
+          li.textContent = x;
+          list.appendChild(li);
+        });
+      }
     } catch (err) {
-      showError(err?.message || "Network error. Please try again.");
+      errorBox.textContent =
+        "Error: " +
+        (err?.message || "Failed to fetch. Check API_BASE, CORS, and API key.");
     } finally {
-      setLoading(false);
+      btn.disabled = false;
+      btn.textContent = "Get recommendations";
+      if (status.textContent === "Thinking…") status.textContent = "";
     }
-  });
+  }
 
-  panel.appendChild(
-    el("div", { class: "aiw-header" }, [
-      el("div", { class: "aiw-title" }, TITLE),
-      el("button", { class: "aiw-close", title: "Close", onClick: close }, "×"),
-    ])
-  );
-
-  panel.appendChild(
-    el("div", { class: "aiw-body" }, [
-      el("div", { class: "aiw-field" }, companyInput),
-      el("div", { class: "aiw-field" }, industryInput),
-      el("div", { class: "aiw-field" }, sizeInput),
-      el("div", { class: "aiw-field" }, goalInput),
-      btn,
-      status,
-      errorBox,
-      results,
-    ])
-  );
-
-  panel.appendChild(
-    el("div", { class: "aiw-footer" }, [
-      el("div", {}, `client: ${CLIENT_ID}`),
-      el("div", { class: "aiw-powered" }, [
-        "Powered by ",
-        el("a", { href: BRAND_URL, target: "_blank", rel: "noopener" }, BRAND_NAME),
-      ]),
-    ])
-  );
-
-  const launch = el("button", { class: "aiw-launch", onClick: open }, "AI Recommender");
-
-  document.body.appendChild(backdrop);
-  document.body.appendChild(panel);
-  document.body.appendChild(launch);
+  btn.addEventListener("click", getRecommendations);
 })();
