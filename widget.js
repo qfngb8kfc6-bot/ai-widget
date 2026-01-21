@@ -311,14 +311,15 @@ if (!API_KEY) {
         goal: job
       };
 
-      const res = await fetch(`${API_BASE}/recommend`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${API_KEY}`
-        },
-        body: JSON.stringify(payload)
-      });
+      const response = await fetch(`${API_BASE}/recommend`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${API_KEY}`
+  },
+  body: JSON.stringify(payload)
+});
+
 
       if (!res.ok) {
         const text = await res.text();
