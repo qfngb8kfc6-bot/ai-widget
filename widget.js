@@ -1,6 +1,8 @@
 // --- CONFIG ---
 const API_BASE = "https://ai-widget-backend.onrender.com";
-const API_KEY = "client_acme_8f2k93";
+const scriptTag = document.currentScript;
+const API_KEY = scriptTag?.getAttribute("data-api-key");
+
 
 // --- Inject UI ---
 (function () {
