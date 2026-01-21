@@ -1,8 +1,13 @@
 // --- CONFIG ---
-const API_BASE = "https://ai-widget-backend.onrender.com";
 const scriptTag = document.currentScript;
-const API_KEY = scriptTag?.getAttribute("data-api-key");
 
+const API_BASE = "https://ai-widget-backend.onrender.com";
+const API_KEY = scriptTag?.getAttribute("data-api-key");
+const POSITION = scriptTag?.getAttribute("data-position") || "bottom-right";
+
+if (!API_KEY) {
+  console.error("AI Widget: Missing data-api-key attribute");
+}
 
 // --- Inject UI ---
 (function () {
