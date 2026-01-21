@@ -1,6 +1,6 @@
 // --- CONFIG ---
 const API_BASE = "https://ai-widget-backend.onrender.com";
-const API_KEY = "demo-key-123"; // change per customer later
+const API_KEY = "client_acme_8f2k93";
 
 // --- Inject UI ---
 (function () {
