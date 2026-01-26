@@ -5,6 +5,7 @@
      AIWidget.init({ apiBase:"https://ai-widget-backend.onrender.com", apiKey:"YOUR_KEY" });
    </script>
 */
+console.log("✅ AIWidget loaded");
 
 (function () {
   const DEFAULTS = {
