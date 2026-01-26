@@ -1,21 +1,32 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>AI Widget Demo</title>
+    <style>
+      body { font-family: Georgia, serif; padding: 40px; }
+      h1 { font-size: 54px; margin: 0 0 16px; }
+      p { font-size: 18px; }
+    </style>
   </head>
   <body>
     <h1>AI Widget Demo</h1>
     <p>If the widget appears, it works.</p>
 
-    <!-- ONE-LINE INSTALL (SaaS embed style) -->
-    <script
-      src="https://qfngb8kfc6-bot.github.io/ai-widget/widget.js"
-      data-api-base="https://ai-widget-backend.onrender.com"
-      data-api-key="demo"
-      data-position="bottom-right"
-      data-brand="AI Service Recommender"
-      data-launcher-label="AI Recommender"
-    ></script>
+    <!-- Load widget -->
+    <script src="./widget.js"></script>
+
+    <!-- Configure widget -->
+    <script>
+      AIWidget.init({
+        apiBase: "https://ai-widget-backend.onrender.com",
+        apiKey: "REPLACE_WITH_REAL_KEY",     // <-- change this
+        buttonText: "AI Recommender",
+        ctaText: "✨ Why attend?",
+        poweredByText: "Powered by AI Widget",
+        position: "top"
+      });
+    </script>
   </body>
 </html>
