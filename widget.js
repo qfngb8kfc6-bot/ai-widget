@@ -9,11 +9,11 @@
 (function () {
   const DEFAULTS = {
     apiBase: "https://ai-widget-backend.onrender.com",
-    apiKey: "demo-key-123",
+    apiKey: "cust_demo_123",
     buttonText: "AI Recommender",
-    ctaText: "✨ Why attend?",
-    poweredByText: "Powered by AI Widget",
-    position: "top", // "top" or "bottom"
+    ctaText: "✨ recommend service ?",
+    poweredByText: "Powered by Tamed intelligence",
+    position: "bottom", // "top" or "bottom"
   };
 
   const STATE = {
