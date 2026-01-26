@@ -15,14 +15,13 @@
     poweredByText: "Powered by Tamed intelligence",
     position: "bottom", // "top" or "bottom"
   };
-
-  const STATE = {
-    isOpen: false,
-    isLoading: false,
-    lastError: "",
-    results: [],
-    config: { ...DEFAULTS },
-  };
+const STATE = {
+  isOpen: false,
+  isLoading: false,
+  lastError: "",
+  results: [],
+  client: "",           // 👈 ADD THIS
+  config: { ...DEFAULTS },
 
   // -----------------------------
   // Styles (injected)
