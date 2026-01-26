@@ -20,9 +20,9 @@ const STATE = {
   isLoading: false,
   lastError: "",
   results: [],
-  client: "",           // 👈 ADD THIS
+  client: "",
+  branding: null,   // 👈 ADD
   config: { ...DEFAULTS },
-
   // -----------------------------
   // Styles (injected)
   // -----------------------------
