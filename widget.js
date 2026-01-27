@@ -11,7 +11,7 @@ console.log("✅ AIWidget loaded");
 (function () {
   const DEFAULTS = {
     apiBase: "https://ai-widget-backend.onrender.com",
-    apiKey: "cust_demo_123", // <-- replace per customer in their embed snippet
+    apiKey: "cust_demo_123",
     buttonText: "AI Recommender",
     ctaText: "✨ Why attend?",
     poweredByText: "Powered by AI Widget",
@@ -22,15 +22,15 @@ console.log("✅ AIWidget loaded");
     isOpen: false,
     isLoading: false,
     lastError: "",
-    // NEW: ranked results from backend: [{service, score, why}]
-    ranked: [],
+    ranked: [], // [{service, score, why}]
     client: "",
     branding: null, // { name, primary, accent, logo_url }
+    whyOpen: false, // ✅ expand/collapse
     config: { ...DEFAULTS },
   };
 
   // -----------------------------
-  // Styles (injected)
+  // Styles
   // -----------------------------
   function injectStyles() {
     if (document.getElementById("aiw-styles")) return;
@@ -43,7 +43,7 @@ console.log("✅ AIWidget loaded");
         --aiw-glass: rgba(80, 120, 180, .18);
         --aiw-glass-2: rgba(100, 180, 220, .18);
 
-        /* defaults; can be overwritten by branding */
+        /* branding overridable */
         --aiw-pill-bg: #1e50a0;
         --aiw-pill-bg-2: #28aabe;
         --aiw-btn: #0b1020;
@@ -52,10 +52,11 @@ console.log("✅ AIWidget loaded");
         --aiw-input-bg: rgba(245, 247, 255, .95);
         --aiw-input-text: rgba(15, 20, 30, .92);
         --aiw-btn-text: rgba(255,255,255,.96);
-        --aiw-muted: rgba(255,255,255,.70);
+
+        --aiw-green: #22c55e; /* ✅ ring color */
+        --aiw-ring-bg: rgba(0,0,0,.08);
       }
 
-      /* Floating launcher button */
       .aiw-launcher {
         position: fixed;
         right: 22px;
@@ -72,7 +73,6 @@ console.log("✅ AIWidget loaded");
       }
       .aiw-launcher:hover { transform: translateY(-1px); }
 
-      /* Backdrop glass overlay */
       .aiw-backdrop {
         position: fixed;
         inset: 0;
@@ -91,7 +91,6 @@ console.log("✅ AIWidget loaded");
         pointer-events: auto;
       }
 
-      /* Pill container */
       .aiw-pill {
         position: fixed;
         left: 50%;
@@ -153,7 +152,6 @@ console.log("✅ AIWidget loaded");
       }
       .aiw-close:hover { background: rgba(255,255,255,.18); }
 
-      /* Results card */
       .aiw-results {
         position: fixed;
         left: 50%;
@@ -170,7 +168,7 @@ console.log("✅ AIWidget loaded");
       .aiw-results.aiw-bottom { bottom: 165px; }
 
       .aiw-results h3 {
-        margin: 0 0 12px;
+        margin: 0 0 10px;
         font: 900 18px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         color: rgba(15,20,30,.92);
         display: flex;
@@ -178,38 +176,96 @@ console.log("✅ AIWidget loaded");
         gap: 10px;
       }
 
-      /* Ranked rows */
+      .aiw-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 10px 0 12px;
+      }
+
+      .aiw-toggle {
+        border: 1px solid rgba(0,0,0,.10);
+        background: rgba(255,255,255,.8);
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 10px 12px;
+        font: 800 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        color: rgba(15,20,30,.75);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .aiw-toggle:hover { transform: translateY(-1px); }
+
       .aiw-rank {
         display: grid;
         gap: 10px;
       }
       .aiw-row {
         display: grid;
-        grid-template-columns: 1fr 80px;
-        gap: 10px;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
         padding: 12px 12px;
         border-radius: 14px;
         background: rgba(255,255,255,.85);
         border: 1px solid rgba(0,0,0,.06);
+        align-items: start;
       }
       .aiw-row-title {
-        font: 800 14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        font: 900 14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         color: rgba(15,20,30,.92);
         margin: 0 0 4px;
       }
       .aiw-row-why {
-        font: 600 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        font: 650 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         color: rgba(15,20,30,.70);
-        margin: 0;
+        margin: 6px 0 0;
       }
-      .aiw-score {
-        justify-self: end;
-        align-self: start;
-        font: 900 14px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.90);
-        background: rgba(0,0,0,.06);
-        padding: 8px 10px;
-        border-radius: 999px;
+      .aiw-why-collapsed { display: none; }
+      .aiw-why-expanded { display: block; }
+
+      /* ✅ Circular score ring */
+      .aiw-ring {
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+      }
+      .aiw-ring svg {
+        width: 54px;
+        height: 54px;
+        transform: rotate(-90deg);
+      }
+      .aiw-ring .bg {
+        stroke: var(--aiw-ring-bg);
+        stroke-width: 6;
+        fill: none;
+      }
+      .aiw-ring .fg {
+        stroke: var(--aiw-green);
+        stroke-width: 6;
+        fill: none;
+        stroke-linecap: round;
+        transition: stroke-dashoffset .35s ease;
+      }
+      .aiw-ring .label {
+        position: absolute;
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        font: 900 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        color: rgba(15,20,30,.92);
+      }
+      .aiw-ring-wrap {
+        position: relative;
+        width: 54px;
+        height: 54px;
+      }
+      .aiw-ring small {
+        font: 800 10px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        color: rgba(15,20,30,.65);
       }
 
       .aiw-meta {
@@ -219,15 +275,14 @@ console.log("✅ AIWidget loaded");
         justify-content: space-between;
         gap: 10px;
         color: rgba(15,20,30,.55);
-        font: 600 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        font: 650 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       }
       .aiw-error {
         margin: 10px 0 0;
         color: #b00020;
-        font: 700 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        font: 750 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       }
 
-      /* Spinner */
       .aiw-spinner {
         width: 16px;
         height: 16px;
@@ -238,7 +293,6 @@ console.log("✅ AIWidget loaded");
       }
       @keyframes aiwspin { to { transform: rotate(360deg); } }
 
-      /* Mobile stacking */
       @media (max-width: 880px) {
         .aiw-pill {
           border-radius: 26px;
@@ -257,7 +311,7 @@ console.log("✅ AIWidget loaded");
   }
 
   // -----------------------------
-  // DOM helpers
+  // Helpers
   // -----------------------------
   function qs(id) {
     return document.getElementById(id);
@@ -293,32 +347,46 @@ console.log("✅ AIWidget loaded");
       .replaceAll("'", "&#039;");
   }
 
-  // Apply branding via CSS variables
   function applyBranding(branding) {
     if (!branding) return;
-
-    // Use backend fields: primary + accent
-    const primary = branding.primary;
-    const accent = branding.accent;
-
-    // Set them globally so pill + cards match
     const root = document.documentElement;
-    if (primary) root.style.setProperty("--aiw-btn", primary);
+    if (branding.primary) root.style.setProperty("--aiw-btn", branding.primary);
+    if (branding.primary) root.style.setProperty("--aiw-pill-bg", branding.primary);
+    if (branding.accent) root.style.setProperty("--aiw-pill-bg-2", branding.accent);
+    if (branding.name) STATE.config.poweredByText = `Powered by ${branding.name}`;
+  }
 
-    // For the pill gradient, use primary->accent if present
-    if (primary) root.style.setProperty("--aiw-pill-bg", primary);
-    if (accent) root.style.setProperty("--aiw-pill-bg-2", accent);
+  // ✅ create ring HTML (SVG stroke dashoffset)
+  function ringHTML(score) {
+    const s = Math.max(0, Math.min(100, Number(score) || 0));
+    const r = 20; // radius
+    const c = 2 * Math.PI * r; // circumference
+    const offset = c - (s / 100) * c;
 
-    // Update powered by
-    if (branding.name) {
-      STATE.config.poweredByText = `Powered by ${branding.name}`;
-    }
+    return `
+      <div class="aiw-ring">
+        <div class="aiw-ring-wrap">
+          <div class="label">
+            <div style="display:grid;place-items:center;gap:2px;">
+              <div>${s}%</div>
+              <small>%</small>
+            </div>
+          </div>
+          <svg viewBox="0 0 54 54" aria-label="score">
+            <circle class="bg" cx="27" cy="27" r="${r}"></circle>
+            <circle class="fg" cx="27" cy="27" r="${r}"
+              stroke-dasharray="${c.toFixed(2)}"
+              stroke-dashoffset="${offset.toFixed(2)}"
+            ></circle>
+          </svg>
+        </div>
+      </div>
+    `;
   }
 
   function render() {
     ensureDOM();
 
-    // remove existing pill/results
     const oldPill = qs("aiw-pill");
     const oldResults = qs("aiw-results");
     if (oldPill) oldPill.remove();
@@ -335,7 +403,6 @@ console.log("✅ AIWidget loaded");
     const pill = document.createElement("div");
     pill.id = "aiw-pill";
     pill.className = `aiw-pill ${posClass}`;
-
     pill.innerHTML = `
       <input id="aiw-website" class="aiw-input" placeholder="Website URL" />
       <input id="aiw-industry" class="aiw-input" placeholder="Industry" />
@@ -347,10 +414,9 @@ console.log("✅ AIWidget loaded");
 
       <button id="aiw-close" class="aiw-close" aria-label="Close">×</button>
     `;
-
     document.body.appendChild(pill);
 
-    // Results card
+    // Results
     const resultsCard = document.createElement("div");
     resultsCard.id = "aiw-results";
     resultsCard.className = `aiw-results ${posClass}`;
@@ -360,20 +426,30 @@ console.log("✅ AIWidget loaded");
         ? `<img src="${escapeHtml(STATE.branding.logo_url)}" style="height:22px;max-width:140px;object-fit:contain;" alt="logo" />`
         : "";
 
-    let bodyHtml = "";
+    const toggleLabel = STATE.whyOpen ? "Hide why" : "Why these?";
+    const toggleIcon = STATE.whyOpen ? "▾" : "▸";
 
+    let bodyHtml = "";
     if (STATE.ranked && STATE.ranked.length) {
       bodyHtml = `
+        <div class="aiw-toolbar">
+          <button id="aiw-why-toggle" class="aiw-toggle" type="button">
+            ${toggleIcon} ${toggleLabel}
+          </button>
+        </div>
+
         <div class="aiw-rank">
           ${STATE.ranked
             .map(
-              (r) => `
+              (r, idx) => `
                 <div class="aiw-row">
                   <div>
                     <div class="aiw-row-title">${escapeHtml(r.service)}</div>
-                    <p class="aiw-row-why">${escapeHtml(r.why || "")}</p>
+                    <div class="${STATE.whyOpen ? "aiw-why-expanded" : "aiw-why-collapsed"}">
+                      <p class="aiw-row-why">${escapeHtml(r.why || "")}</p>
+                    </div>
                   </div>
-                  <div class="aiw-score">${escapeHtml(r.score)}%</div>
+                  ${ringHTML(r.score)}
                 </div>
               `
             )
@@ -390,7 +466,7 @@ console.log("✅ AIWidget loaded");
                 STATE.config.ctaText.replace("✨ ", "")
               )}”.</p>
             </div>
-            <div class="aiw-score">—</div>
+            ${ringHTML(0)}
           </div>
         </div>
       `;
@@ -408,21 +484,24 @@ console.log("✅ AIWidget loaded");
 
     document.body.appendChild(resultsCard);
 
-    // Apply branding after DOM exists
     applyBranding(STATE.branding);
 
-    // Wire events
+    // Events
     qs("aiw-close").addEventListener("click", close);
-
     pill.addEventListener("click", (e) => e.stopPropagation());
     resultsCard.addEventListener("click", (e) => e.stopPropagation());
 
     qs("aiw-cta").addEventListener("click", onSubmit);
+
+    const toggle = qs("aiw-why-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        STATE.whyOpen = !STATE.whyOpen;
+        render();
+      });
+    }
   }
 
-  // -----------------------------
-  // Open/Close
-  // -----------------------------
   function open() {
     STATE.isOpen = true;
     STATE.lastError = "";
@@ -435,7 +514,7 @@ console.log("✅ AIWidget loaded");
   }
 
   // -----------------------------
-  // Submit -> API ✅ this is onSubmit()
+  // Submit -> API ✅ onSubmit()
   // -----------------------------
   async function onSubmit() {
     if (STATE.isLoading) return;
@@ -482,16 +561,12 @@ console.log("✅ AIWidget loaded");
         throw new Error(msg);
       }
 
-      // ✅ read real client + branding from backend
       STATE.client = data.client || "";
       STATE.branding = data.branding || null;
 
-      // ✅ NEW: backend returns ranked_services
+      // ✅ expects: ranked_services: [{service, score, why}]
       STATE.ranked = Array.isArray(data.ranked_services) ? data.ranked_services : [];
-
-      if (!STATE.ranked.length) {
-        STATE.lastError = "No recommendations returned.";
-      }
+      if (!STATE.ranked.length) STATE.lastError = "No recommendations returned.";
     } catch (err) {
       STATE.ranked = [];
       STATE.lastError = err?.message || "Request failed.";
@@ -501,9 +576,6 @@ console.log("✅ AIWidget loaded");
     }
   }
 
-  // -----------------------------
-  // Public API
-  // -----------------------------
   window.AIWidget = {
     init(config = {}) {
       STATE.config = { ...DEFAULTS, ...config };
@@ -513,6 +585,5 @@ console.log("✅ AIWidget loaded");
     close,
   };
 
-  // Auto-init
   ensureDOM();
 })();
