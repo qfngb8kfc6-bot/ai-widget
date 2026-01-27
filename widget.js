@@ -1,497 +1,287 @@
-/* AI Widget (SaaS embed) - website_url + industry + goal */
-
+/* AI Widget (SaaS embed) — FINAL
+   Fields: Website URL + Industry + Goal
+*/
 console.log("✅ AIWidget loaded");
 
 (function () {
   const DEFAULTS = {
     apiBase: "https://ai-widget-backend.onrender.com",
-    apiKey: "cust_demo_123",
+    apiKey: "cust_demo_123", // change per customer
     buttonText: "AI Recommender",
     ctaText: "✨ Why attend?",
     poweredByText: "Powered by AI Widget",
-    position: "top", // "top" or "bottom"
+    position: "top",
   };
 
   const STATE = {
     isOpen: false,
     isLoading: false,
     lastError: "",
-    ranked: [], // [{service, score, why}]
+    ranked: [],
+    showWhy: false,
     client: "",
     branding: null,
-    whyOpen: false,
     config: { ...DEFAULTS },
   };
 
+  /* ------------------ STYLES ------------------ */
   function injectStyles() {
     if (document.getElementById("aiw-styles")) return;
 
     const css = `
       :root {
-        --aiw-shadow: 0 30px 70px rgba(0,0,0,.18);
-        --aiw-shadow-soft: 0 18px 50px rgba(0,0,0,.12);
-        --aiw-border: rgba(255,255,255,.28);
-        --aiw-glass: rgba(80, 120, 180, .18);
-        --aiw-glass-2: rgba(100, 180, 220, .18);
-
-        --aiw-pill-bg: #1e50a0;
-        --aiw-pill-bg-2: #28aabe;
-        --aiw-btn: #0b1020;
-
-        --aiw-text: rgba(255,255,255,.92);
-        --aiw-input-bg: rgba(245, 247, 255, .95);
-        --aiw-input-text: rgba(15, 20, 30, .92);
-        --aiw-btn-text: rgba(255,255,255,.96);
-
-        --aiw-green: #22c55e;
-        --aiw-ring-bg: rgba(0,0,0,.10);
+        --pill1:#1e50a0;
+        --pill2:#28aabe;
+        --btn:#0b1020;
       }
 
       .aiw-launcher {
-        position: fixed;
-        right: 22px;
-        bottom: 22px;
-        z-index: 2147483647;
-        border: 0;
-        cursor: pointer;
-        padding: 12px 16px;
-        border-radius: 999px;
-        background: #0b1020;
-        color: #fff;
-        box-shadow: var(--aiw-shadow-soft);
-        font: 600 14px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        position:fixed; right:22px; bottom:22px;
+        border:0; padding:12px 16px;
+        border-radius:999px;
+        background:#0b1020; color:#fff;
+        cursor:pointer; z-index:999999;
       }
-      .aiw-launcher:hover { transform: translateY(-1px); }
 
       .aiw-backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 2147483646;
-        background: radial-gradient(1000px 500px at 70% 20%, var(--aiw-glass), transparent 60%),
-                    radial-gradient(900px 500px at 20% 70%, var(--aiw-glass-2), transparent 60%),
-                    rgba(0,0,0,.08);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity .18s ease;
+        position:fixed; inset:0;
+        backdrop-filter:blur(10px);
+        background:rgba(0,0,0,.08);
+        opacity:0; pointer-events:none;
+        transition:.2s; z-index:999998;
       }
-      .aiw-backdrop.aiw-open {
-        opacity: 1;
-        pointer-events: auto;
-      }
+      .aiw-backdrop.open { opacity:1; pointer-events:auto; }
 
       .aiw-pill {
-        position: fixed;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 2147483647;
-        width: min(1080px, calc(100vw - 40px));
-        border-radius: 999px;
-        border: 1px solid var(--aiw-border);
-        box-shadow: var(--aiw-shadow);
-        background: linear-gradient(90deg, var(--aiw-pill-bg), var(--aiw-pill-bg-2));
-        display: flex;
-        gap: 14px;
-        align-items: center;
-        padding: 18px 18px;
+        position:fixed; left:50%; transform:translateX(-50%);
+        top:90px;
+        width:min(1100px,calc(100vw - 40px));
+        background:linear-gradient(90deg,var(--pill1),var(--pill2));
+        padding:18px; border-radius:999px;
+        display:flex; gap:12px; align-items:center;
+        z-index:999999;
       }
-      .aiw-pill.aiw-top { top: 90px; }
-      .aiw-pill.aiw-bottom { bottom: 90px; }
 
       .aiw-input {
-        flex: 1;
-        min-width: 140px;
-        background: var(--aiw-input-bg);
-        border: 1px solid rgba(255,255,255,.25);
-        border-radius: 999px;
-        padding: 14px 16px;
-        font: 600 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: var(--aiw-input-text);
-        outline: none;
+        flex:1;
+        padding:14px 16px;
+        border-radius:999px;
+        border:0;
+        font-weight:600;
       }
-      .aiw-input::placeholder { color: rgba(15,20,30,.45); font-weight: 600; }
 
       .aiw-cta {
-        border: 0;
-        cursor: pointer;
-        border-radius: 999px;
-        padding: 14px 18px;
-        background: var(--aiw-btn);
-        color: var(--aiw-btn-text);
-        font: 800 14px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        white-space: nowrap;
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
+        padding:14px 20px;
+        border-radius:999px;
+        border:0;
+        background:var(--btn);
+        color:#fff;
+        font-weight:800;
+        cursor:pointer;
       }
-      .aiw-cta:disabled { opacity: .6; cursor: not-allowed; }
-      .aiw-cta:hover { transform: translateY(-1px); }
 
       .aiw-close {
-        border: 0;
-        cursor: pointer;
-        width: 44px;
-        height: 44px;
-        border-radius: 999px;
-        background: rgba(255,255,255,.14);
-        color: var(--aiw-text);
-        font: 800 18px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        display: grid;
-        place-items: center;
+        width:44px; height:44px;
+        border-radius:999px;
+        border:0;
+        font-size:20px;
+        cursor:pointer;
       }
-      .aiw-close:hover { background: rgba(255,255,255,.18); }
 
       .aiw-results {
-        position: fixed;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 2147483647;
-        width: min(1080px, calc(100vw - 40px));
-        border-radius: 20px;
-        border: 1px solid rgba(0,0,0,.06);
-        background: rgba(255,255,255,.92);
-        box-shadow: var(--aiw-shadow-soft);
-        padding: 18px 18px 14px;
-      }
-      .aiw-results.aiw-top { top: 165px; }
-      .aiw-results.aiw-bottom { bottom: 165px; }
-
-      .aiw-results h3 {
-        margin: 0 0 10px;
-        font: 900 18px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.92);
+        position:fixed;
+        top:170px;
+        left:50%;
+        transform:translateX(-50%);
+        width:min(1100px,calc(100vw - 40px));
+        background:#fff;
+        border-radius:18px;
+        padding:18px;
+        box-shadow:0 20px 60px rgba(0,0,0,.15);
+        z-index:999999;
       }
 
-      .aiw-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin: 10px 0 12px;
+      .aiw-row {
+        display:flex;
+        align-items:center;
+        gap:14px;
+        padding:10px 0;
+        border-bottom:1px solid #eee;
+      }
+
+      .aiw-ring {
+        width:44px;
+        height:44px;
+      }
+
+      .aiw-ring circle {
+        fill:none;
+        stroke-width:5;
+      }
+
+      .aiw-ring .bg {
+        stroke:#eee;
+      }
+
+      .aiw-ring .fg {
+        stroke:#2ecc71;
+        stroke-linecap:round;
+        transform:rotate(-90deg);
+        transform-origin:50% 50%;
+      }
+
+      .aiw-score {
+        position:absolute;
+        font-size:12px;
+        font-weight:800;
+      }
+
+      .aiw-service {
+        font-weight:700;
+      }
+
+      .aiw-why {
+        margin-top:6px;
+        font-size:13px;
+        color:#555;
       }
 
       .aiw-toggle {
-        border: 1px solid rgba(0,0,0,.10);
-        background: rgba(255,255,255,.8);
-        cursor: pointer;
-        border-radius: 999px;
-        padding: 10px 12px;
-        font: 800 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.75);
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .aiw-rank {
-        display: grid;
-        gap: 10px;
-      }
-      .aiw-row {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 12px;
-        padding: 12px;
-        border-radius: 14px;
-        background: rgba(255,255,255,.85);
-        border: 1px solid rgba(0,0,0,.06);
-        align-items: start;
-      }
-      .aiw-row-title {
-        font: 900 14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.92);
-        margin: 0 0 4px;
-      }
-      .aiw-row-why {
-        font: 650 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.70);
-        margin: 6px 0 0;
-      }
-      .aiw-why-collapsed { display: none; }
-      .aiw-why-expanded { display: block; }
-
-      .aiw-ring { width: 54px; height: 54px; display: grid; place-items: center; }
-      .aiw-ring-wrap { position: relative; width: 54px; height: 54px; }
-      .aiw-ring svg { width: 54px; height: 54px; transform: rotate(-90deg); }
-      .aiw-ring .bg { stroke: var(--aiw-ring-bg); stroke-width: 6; fill: none; }
-      .aiw-ring .fg { stroke: var(--aiw-green); stroke-width: 6; fill: none; stroke-linecap: round; transition: stroke-dashoffset .35s ease; }
-      .aiw-ring .label {
-        position: absolute; inset: 0;
-        display: grid; place-items: center;
-        font: 900 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.92);
+        margin-top:12px;
+        font-weight:700;
+        cursor:pointer;
+        color:#1e50a0;
       }
 
       .aiw-meta {
-        margin-top: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        color: rgba(15,20,30,.55);
-        font: 650 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      }
-      .aiw-error {
-        margin: 10px 0 0;
-        color: #b00020;
-        font: 750 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      }
-
-      .aiw-spinner {
-        width: 16px; height: 16px;
-        border: 2px solid rgba(255,255,255,.35);
-        border-top-color: rgba(255,255,255,.95);
-        border-radius: 999px;
-        animation: aiwspin .8s linear infinite;
-      }
-      @keyframes aiwspin { to { transform: rotate(360deg); } }
-
-      @media (max-width: 880px) {
-        .aiw-pill { border-radius: 26px; padding: 14px; flex-wrap: wrap; }
-        .aiw-input { flex: 1 1 240px; }
-        .aiw-cta { flex: 1 1 220px; justify-content: center; }
+        display:flex;
+        justify-content:space-between;
+        margin-top:10px;
+        font-size:12px;
+        color:#777;
       }
     `;
-
-    const style = document.createElement("style");
-    style.id = "aiw-styles";
-    style.textContent = css;
-    document.head.appendChild(style);
+    const s = document.createElement("style");
+    s.id = "aiw-styles";
+    s.textContent = css;
+    document.head.appendChild(s);
   }
 
-  function qs(id) {
-    return document.getElementById(id);
-  }
+  /* ------------------ DOM ------------------ */
+  function qs(id) { return document.getElementById(id); }
 
   function ensureDOM() {
     injectStyles();
 
     if (!qs("aiw-launcher")) {
-      const launcher = document.createElement("button");
-      launcher.id = "aiw-launcher";
-      launcher.className = "aiw-launcher";
-      launcher.textContent = STATE.config.buttonText;
-      launcher.addEventListener("click", open);
-      document.body.appendChild(launcher);
+      const b = document.createElement("button");
+      b.id = "aiw-launcher";
+      b.className = "aiw-launcher";
+      b.textContent = STATE.config.buttonText;
+      b.onclick = open;
+      document.body.appendChild(b);
     }
 
     if (!qs("aiw-backdrop")) {
-      const backdrop = document.createElement("div");
-      backdrop.id = "aiw-backdrop";
-      backdrop.className = "aiw-backdrop";
-      backdrop.addEventListener("click", close);
-      document.body.appendChild(backdrop);
+      const d = document.createElement("div");
+      d.id = "aiw-backdrop";
+      d.className = "aiw-backdrop";
+      d.onclick = close;
+      document.body.appendChild(d);
     }
   }
 
-  function escapeHtml(str) {
-    return String(str || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function applyBranding(branding) {
-    if (!branding) return;
-    const root = document.documentElement;
-    if (branding.primary) root.style.setProperty("--aiw-btn", branding.primary);
-    if (branding.grad1) root.style.setProperty("--aiw-pill-bg", branding.grad1);
-    if (branding.grad2) root.style.setProperty("--aiw-pill-bg-2", branding.grad2);
-    if (branding.name) STATE.config.poweredByText = `Powered by ${branding.name}`;
-  }
-
-  function ringHTML(score) {
-    const s = Math.max(0, Math.min(100, Number(score) || 0));
-    const r = 20;
-    const c = 2 * Math.PI * r;
-    const offset = c - (s / 100) * c;
-
-    return `
-      <div class="aiw-ring">
-        <div class="aiw-ring-wrap">
-          <div class="label">${s}%</div>
-          <svg viewBox="0 0 54 54">
-            <circle class="bg" cx="27" cy="27" r="${r}"></circle>
-            <circle class="fg" cx="27" cy="27" r="${r}"
-              stroke-dasharray="${c.toFixed(2)}"
-              stroke-dashoffset="${offset.toFixed(2)}"
-            ></circle>
-          </svg>
-        </div>
-      </div>
-    `;
-  }
-
+  /* ------------------ RENDER ------------------ */
   function render() {
     ensureDOM();
 
-    const oldPill = qs("aiw-pill");
-    const oldResults = qs("aiw-results");
-    if (oldPill) oldPill.remove();
-    if (oldResults) oldResults.remove();
-
-    const backdrop = qs("aiw-backdrop");
-    backdrop.classList.toggle("aiw-open", STATE.isOpen);
-
+    ["aiw-pill","aiw-results"].forEach(id => qs(id)?.remove());
+    qs("aiw-backdrop").classList.toggle("open", STATE.isOpen);
     if (!STATE.isOpen) return;
-
-    const posClass = STATE.config.position === "bottom" ? "aiw-bottom" : "aiw-top";
 
     const pill = document.createElement("div");
     pill.id = "aiw-pill";
-    pill.className = `aiw-pill ${posClass}`;
+    pill.className = "aiw-pill";
     pill.innerHTML = `
-      <input id="aiw-website" class="aiw-input" placeholder="Website URL" />
-      <input id="aiw-industry" class="aiw-input" placeholder="Industry" />
-      <input id="aiw-goal" class="aiw-input" placeholder="Goal" />
-      <button id="aiw-cta" class="aiw-cta" ${STATE.isLoading ? "disabled" : ""}>
-        ${STATE.isLoading ? `<span class="aiw-spinner"></span> Loading...` : `${escapeHtml(STATE.config.ctaText)}`}
-      </button>
-      <button id="aiw-close" class="aiw-close" aria-label="Close">×</button>
+      <input id="w-url" class="aiw-input" placeholder="Website URL">
+      <input id="w-ind" class="aiw-input" placeholder="Industry">
+      <input id="w-goal" class="aiw-input" placeholder="Goal">
+      <button class="aiw-cta" id="w-cta">${STATE.isLoading ? "Loading…" : STATE.config.ctaText}</button>
+      <button class="aiw-close" id="w-close">×</button>
     `;
     document.body.appendChild(pill);
 
-    const resultsCard = document.createElement("div");
-    resultsCard.id = "aiw-results";
-    resultsCard.className = `aiw-results ${posClass}`;
+    qs("w-close").onclick = close;
+    qs("w-cta").onclick = submit;
 
-    const hasAnyWhy = STATE.ranked.some((x) => x && x.why);
+    const card = document.createElement("div");
+    card.id = "aiw-results";
+    card.className = "aiw-results";
 
-    const toggleLabel = STATE.whyOpen ? "Hide why" : "Why these?";
-    const toggleIcon = STATE.whyOpen ? "▾" : "▸";
+    let html = `<h3>Recommended services</h3>`;
 
-    const toolbarHtml = hasAnyWhy
-      ? `
-        <div class="aiw-toolbar">
-          <button id="aiw-why-toggle" class="aiw-toggle" type="button">
-            ${toggleIcon} ${toggleLabel}
-          </button>
-        </div>
-      `
-      : "";
+    if (!STATE.ranked.length) {
+      html += `<p>Fill in the fields and click “Why attend?”.</p>`;
+    }
 
-    const bodyHtml =
-      STATE.ranked && STATE.ranked.length
-        ? `
-          ${toolbarHtml}
-          <div class="aiw-rank">
-            ${STATE.ranked
-              .map(
-                (r) => `
-                  <div class="aiw-row">
-                    <div>
-                      <div class="aiw-row-title">${escapeHtml(r.service)}</div>
-                      <div class="${hasAnyWhy && STATE.whyOpen ? "aiw-why-expanded" : "aiw-why-collapsed"}">
-                        <p class="aiw-row-why">${escapeHtml(r.why || "")}</p>
-                      </div>
-                    </div>
-                    ${ringHTML(r.score)}
-                  </div>
-                `
-              )
-              .join("")}
-          </div>
-        `
-        : `
-          <div class="aiw-rank">
-            <div class="aiw-row">
-              <div>
-                <div class="aiw-row-title">Recommended services will appear here</div>
-                <p class="aiw-row-why">Fill in the fields and click “${escapeHtml(
-                  STATE.config.ctaText.replace("✨ ", "")
-                )}”.</p>
-              </div>
-              ${ringHTML(0)}
+    STATE.ranked.forEach(r => {
+      const circ = 2 * Math.PI * 20;
+      const dash = (r.score / 100) * circ;
+      html += `
+        <div class="aiw-row">
+          <div style="position:relative">
+            <svg class="aiw-ring" viewBox="0 0 44 44">
+              <circle class="bg" cx="22" cy="22" r="20"/>
+              <circle class="fg" cx="22" cy="22" r="20"
+                stroke-dasharray="${dash} ${circ-dash}"/>
+            </svg>
+            <div class="aiw-score" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+              ${r.score}%
             </div>
           </div>
-        `;
+          <div>
+            <div class="aiw-service">${r.service}</div>
+            ${STATE.showWhy ? `<div class="aiw-why">${r.why}</div>` : ``}
+          </div>
+        </div>
+      `;
+    });
 
-    resultsCard.innerHTML = `
-      <h3>Recommended services</h3>
-      ${bodyHtml}
-      ${STATE.lastError ? `<div class="aiw-error">${escapeHtml(STATE.lastError)}</div>` : ""}
+    if (STATE.ranked.length) {
+      html += `<div class="aiw-toggle">${STATE.showWhy ? "Hide why" : "Why these?"}</div>`;
+    }
+
+    html += `
       <div class="aiw-meta">
-        <span>${escapeHtml(STATE.config.poweredByText)}</span>
-        <span>client: ${escapeHtml(STATE.client || "demo")}</span>
+        <span>${STATE.config.poweredByText}</span>
+        <span>client: ${STATE.client || "demo"}</span>
       </div>
     `;
 
-    document.body.appendChild(resultsCard);
-    applyBranding(STATE.branding);
+    card.innerHTML = html;
+    document.body.appendChild(card);
 
-    qs("aiw-close").addEventListener("click", close);
-    pill.addEventListener("click", (e) => e.stopPropagation());
-    resultsCard.addEventListener("click", (e) => e.stopPropagation());
-    qs("aiw-cta").addEventListener("click", onSubmit);
-
-    const toggle = qs("aiw-why-toggle");
-    if (toggle) {
-      toggle.addEventListener("click", () => {
-        STATE.whyOpen = !STATE.whyOpen;
-        render();
-      });
-    }
+    card.querySelector(".aiw-toggle")?.addEventListener("click", () => {
+      STATE.showWhy = !STATE.showWhy;
+      render();
+    });
   }
 
-  function open() {
-    STATE.isOpen = true;
-    STATE.lastError = "";
-    render();
-  }
+  /* ------------------ LOGIC ------------------ */
+  function open() { STATE.isOpen = true; render(); }
+  function close() { STATE.isOpen = false; render(); }
 
-  function close() {
-    STATE.isOpen = false;
-    render();
-  }
-
-  // ✅ supports BOTH old and new backend response formats
-  function normalizeResponse(data) {
-    // New format preferred:
-    if (Array.isArray(data?.ranked_services) && data.ranked_services.length) {
-      return data.ranked_services.map((x) => ({
-        service: x.service,
-        score: Number(x.score ?? 0),
-        why: x.why || "",
-      }));
-    }
-
-    // Old format fallback:
-    if (Array.isArray(data?.recommended_services) && data.recommended_services.length) {
-      // Give descending scores (fake but pretty UI until backend supports real ranking)
-      const base = 88;
-      const step = 8;
-      return data.recommended_services.map((service, i) => ({
-        service,
-        score: Math.max(40, base - i * step),
-        why: "", // no why available in old format
-      }));
-    }
-
-    return [];
-  }
-
-  async function onSubmit() {
+  async function submit() {
     if (STATE.isLoading) return;
 
-    const website_url = (qs("aiw-website").value || "").trim();
-    const industry = (qs("aiw-industry").value || "").trim();
-    const goal = (qs("aiw-goal").value || "").trim();
+    const website_url = qs("w-url").value.trim();
+    const industry = qs("w-ind").value.trim();
+    const goal = qs("w-goal").value.trim();
 
-    if (!website_url || !industry || !goal) {
-      STATE.lastError = "Please fill in Website URL, Industry, and Goal.";
-      STATE.ranked = [];
-      render();
-      return;
-    }
+    if (!website_url || !industry || !goal) return;
 
     STATE.isLoading = true;
-    STATE.lastError = "";
     render();
-
-    const payload = { website_url, industry, goal };
 
     try {
       const res = await fetch(`${STATE.config.apiBase}/recommend`, {
@@ -500,37 +290,14 @@ console.log("✅ AIWidget loaded");
           "Content-Type": "application/json",
           "Authorization": `Bearer ${STATE.config.apiKey}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ website_url, industry, goal }),
       });
 
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { raw: text };
-      }
-
-      if (!res.ok) {
-        const msg =
-          (data && data.detail && (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))) ||
-          `Request failed (${res.status})`;
-        throw new Error(msg);
-      }
-
-      STATE.client = data.client || STATE.client || "demo";
-      STATE.branding = data.branding || null;
-
-      STATE.ranked = normalizeResponse(data);
-
-      if (!STATE.ranked.length) {
-        STATE.lastError = "No recommendations returned.";
-      } else {
-        STATE.lastError = "";
-      }
-    } catch (err) {
+      const data = await res.json();
+      STATE.client = data.client;
+      STATE.ranked = data.ranked_services || [];
+    } catch {
       STATE.ranked = [];
-      STATE.lastError = err?.message || "Request failed.";
     } finally {
       STATE.isLoading = false;
       render();
@@ -538,12 +305,8 @@ console.log("✅ AIWidget loaded");
   }
 
   window.AIWidget = {
-    init(config = {}) {
-      STATE.config = { ...DEFAULTS, ...config };
-      ensureDOM();
-    },
-    open,
-    close,
+    init(cfg={}) { STATE.config = {...DEFAULTS,...cfg}; ensureDOM(); },
+    open, close
   };
 
   ensureDOM();
