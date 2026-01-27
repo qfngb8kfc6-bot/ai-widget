@@ -1,10 +1,4 @@
-/* AI Widget (SaaS embed) - website_url + industry + goal
-   Usage:
-   <script src="https://YOUR_GH_PAGES/widget.js"></script>
-   <script>
-     AIWidget.init({ apiBase:"https://ai-widget-backend.onrender.com", apiKey:"YOUR_KEY" });
-   </script>
-*/
+/* AI Widget (SaaS embed) - website_url + industry + goal */
 
 console.log("✅ AIWidget loaded");
 
@@ -24,14 +18,11 @@ console.log("✅ AIWidget loaded");
     lastError: "",
     ranked: [], // [{service, score, why}]
     client: "",
-    branding: null, // { name, primary, accent, logo_url }
-    whyOpen: false, // ✅ expand/collapse
+    branding: null,
+    whyOpen: false,
     config: { ...DEFAULTS },
   };
 
-  // -----------------------------
-  // Styles
-  // -----------------------------
   function injectStyles() {
     if (document.getElementById("aiw-styles")) return;
 
@@ -43,7 +34,6 @@ console.log("✅ AIWidget loaded");
         --aiw-glass: rgba(80, 120, 180, .18);
         --aiw-glass-2: rgba(100, 180, 220, .18);
 
-        /* branding overridable */
         --aiw-pill-bg: #1e50a0;
         --aiw-pill-bg-2: #28aabe;
         --aiw-btn: #0b1020;
@@ -53,8 +43,8 @@ console.log("✅ AIWidget loaded");
         --aiw-input-text: rgba(15, 20, 30, .92);
         --aiw-btn-text: rgba(255,255,255,.96);
 
-        --aiw-green: #22c55e; /* ✅ ring color */
-        --aiw-ring-bg: rgba(0,0,0,.08);
+        --aiw-green: #22c55e;
+        --aiw-ring-bg: rgba(0,0,0,.10);
       }
 
       .aiw-launcher {
@@ -171,9 +161,6 @@ console.log("✅ AIWidget loaded");
         margin: 0 0 10px;
         font: 900 18px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         color: rgba(15,20,30,.92);
-        display: flex;
-        align-items: center;
-        gap: 10px;
       }
 
       .aiw-toolbar {
@@ -196,7 +183,6 @@ console.log("✅ AIWidget loaded");
         align-items: center;
         gap: 8px;
       }
-      .aiw-toggle:hover { transform: translateY(-1px); }
 
       .aiw-rank {
         display: grid;
@@ -206,7 +192,7 @@ console.log("✅ AIWidget loaded");
         display: grid;
         grid-template-columns: 1fr auto;
         gap: 12px;
-        padding: 12px 12px;
+        padding: 12px;
         border-radius: 14px;
         background: rgba(255,255,255,.85);
         border: 1px solid rgba(0,0,0,.06);
@@ -225,47 +211,16 @@ console.log("✅ AIWidget loaded");
       .aiw-why-collapsed { display: none; }
       .aiw-why-expanded { display: block; }
 
-      /* ✅ Circular score ring */
-      .aiw-ring {
-        width: 54px;
-        height: 54px;
-        display: grid;
-        place-items: center;
-      }
-      .aiw-ring svg {
-        width: 54px;
-        height: 54px;
-        transform: rotate(-90deg);
-      }
-      .aiw-ring .bg {
-        stroke: var(--aiw-ring-bg);
-        stroke-width: 6;
-        fill: none;
-      }
-      .aiw-ring .fg {
-        stroke: var(--aiw-green);
-        stroke-width: 6;
-        fill: none;
-        stroke-linecap: round;
-        transition: stroke-dashoffset .35s ease;
-      }
+      .aiw-ring { width: 54px; height: 54px; display: grid; place-items: center; }
+      .aiw-ring-wrap { position: relative; width: 54px; height: 54px; }
+      .aiw-ring svg { width: 54px; height: 54px; transform: rotate(-90deg); }
+      .aiw-ring .bg { stroke: var(--aiw-ring-bg); stroke-width: 6; fill: none; }
+      .aiw-ring .fg { stroke: var(--aiw-green); stroke-width: 6; fill: none; stroke-linecap: round; transition: stroke-dashoffset .35s ease; }
       .aiw-ring .label {
-        position: absolute;
-        width: 54px;
-        height: 54px;
-        display: grid;
-        place-items: center;
+        position: absolute; inset: 0;
+        display: grid; place-items: center;
         font: 900 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         color: rgba(15,20,30,.92);
-      }
-      .aiw-ring-wrap {
-        position: relative;
-        width: 54px;
-        height: 54px;
-      }
-      .aiw-ring small {
-        font: 800 10px/1 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        color: rgba(15,20,30,.65);
       }
 
       .aiw-meta {
@@ -284,8 +239,7 @@ console.log("✅ AIWidget loaded");
       }
 
       .aiw-spinner {
-        width: 16px;
-        height: 16px;
+        width: 16px; height: 16px;
         border: 2px solid rgba(255,255,255,.35);
         border-top-color: rgba(255,255,255,.95);
         border-radius: 999px;
@@ -294,11 +248,7 @@ console.log("✅ AIWidget loaded");
       @keyframes aiwspin { to { transform: rotate(360deg); } }
 
       @media (max-width: 880px) {
-        .aiw-pill {
-          border-radius: 26px;
-          padding: 14px;
-          flex-wrap: wrap;
-        }
+        .aiw-pill { border-radius: 26px; padding: 14px; flex-wrap: wrap; }
         .aiw-input { flex: 1 1 240px; }
         .aiw-cta { flex: 1 1 220px; justify-content: center; }
       }
@@ -310,9 +260,6 @@ console.log("✅ AIWidget loaded");
     document.head.appendChild(style);
   }
 
-  // -----------------------------
-  // Helpers
-  // -----------------------------
   function qs(id) {
     return document.getElementById(id);
   }
@@ -351,28 +298,22 @@ console.log("✅ AIWidget loaded");
     if (!branding) return;
     const root = document.documentElement;
     if (branding.primary) root.style.setProperty("--aiw-btn", branding.primary);
-    if (branding.primary) root.style.setProperty("--aiw-pill-bg", branding.primary);
-    if (branding.accent) root.style.setProperty("--aiw-pill-bg-2", branding.accent);
+    if (branding.grad1) root.style.setProperty("--aiw-pill-bg", branding.grad1);
+    if (branding.grad2) root.style.setProperty("--aiw-pill-bg-2", branding.grad2);
     if (branding.name) STATE.config.poweredByText = `Powered by ${branding.name}`;
   }
 
-  // ✅ create ring HTML (SVG stroke dashoffset)
   function ringHTML(score) {
     const s = Math.max(0, Math.min(100, Number(score) || 0));
-    const r = 20; // radius
-    const c = 2 * Math.PI * r; // circumference
+    const r = 20;
+    const c = 2 * Math.PI * r;
     const offset = c - (s / 100) * c;
 
     return `
       <div class="aiw-ring">
         <div class="aiw-ring-wrap">
-          <div class="label">
-            <div style="display:grid;place-items:center;gap:2px;">
-              <div>${s}%</div>
-              <small>%</small>
-            </div>
-          </div>
-          <svg viewBox="0 0 54 54" aria-label="score">
+          <div class="label">${s}%</div>
+          <svg viewBox="0 0 54 54">
             <circle class="bg" cx="27" cy="27" r="${r}"></circle>
             <circle class="fg" cx="27" cy="27" r="${r}"
               stroke-dasharray="${c.toFixed(2)}"
@@ -399,7 +340,6 @@ console.log("✅ AIWidget loaded");
 
     const posClass = STATE.config.position === "bottom" ? "aiw-bottom" : "aiw-top";
 
-    // Pill
     const pill = document.createElement("div");
     pill.id = "aiw-pill";
     pill.className = `aiw-pill ${posClass}`;
@@ -407,90 +347,84 @@ console.log("✅ AIWidget loaded");
       <input id="aiw-website" class="aiw-input" placeholder="Website URL" />
       <input id="aiw-industry" class="aiw-input" placeholder="Industry" />
       <input id="aiw-goal" class="aiw-input" placeholder="Goal" />
-
       <button id="aiw-cta" class="aiw-cta" ${STATE.isLoading ? "disabled" : ""}>
         ${STATE.isLoading ? `<span class="aiw-spinner"></span> Loading...` : `${escapeHtml(STATE.config.ctaText)}`}
       </button>
-
       <button id="aiw-close" class="aiw-close" aria-label="Close">×</button>
     `;
     document.body.appendChild(pill);
 
-    // Results
     const resultsCard = document.createElement("div");
     resultsCard.id = "aiw-results";
     resultsCard.className = `aiw-results ${posClass}`;
 
-    const logoHtml =
-      STATE.branding?.logo_url
-        ? `<img src="${escapeHtml(STATE.branding.logo_url)}" style="height:22px;max-width:140px;object-fit:contain;" alt="logo" />`
-        : "";
+    const hasAnyWhy = STATE.ranked.some((x) => x && x.why);
 
     const toggleLabel = STATE.whyOpen ? "Hide why" : "Why these?";
     const toggleIcon = STATE.whyOpen ? "▾" : "▸";
 
-    let bodyHtml = "";
-    if (STATE.ranked && STATE.ranked.length) {
-      bodyHtml = `
+    const toolbarHtml = hasAnyWhy
+      ? `
         <div class="aiw-toolbar">
           <button id="aiw-why-toggle" class="aiw-toggle" type="button">
             ${toggleIcon} ${toggleLabel}
           </button>
         </div>
+      `
+      : "";
 
-        <div class="aiw-rank">
-          ${STATE.ranked
-            .map(
-              (r, idx) => `
-                <div class="aiw-row">
-                  <div>
-                    <div class="aiw-row-title">${escapeHtml(r.service)}</div>
-                    <div class="${STATE.whyOpen ? "aiw-why-expanded" : "aiw-why-collapsed"}">
-                      <p class="aiw-row-why">${escapeHtml(r.why || "")}</p>
+    const bodyHtml =
+      STATE.ranked && STATE.ranked.length
+        ? `
+          ${toolbarHtml}
+          <div class="aiw-rank">
+            ${STATE.ranked
+              .map(
+                (r) => `
+                  <div class="aiw-row">
+                    <div>
+                      <div class="aiw-row-title">${escapeHtml(r.service)}</div>
+                      <div class="${hasAnyWhy && STATE.whyOpen ? "aiw-why-expanded" : "aiw-why-collapsed"}">
+                        <p class="aiw-row-why">${escapeHtml(r.why || "")}</p>
+                      </div>
                     </div>
+                    ${ringHTML(r.score)}
                   </div>
-                  ${ringHTML(r.score)}
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-      `;
-    } else {
-      bodyHtml = `
-        <div class="aiw-rank">
-          <div class="aiw-row">
-            <div>
-              <div class="aiw-row-title">Recommended services will appear here</div>
-              <p class="aiw-row-why">Fill in the fields and click “${escapeHtml(
-                STATE.config.ctaText.replace("✨ ", "")
-              )}”.</p>
-            </div>
-            ${ringHTML(0)}
+                `
+              )
+              .join("")}
           </div>
-        </div>
-      `;
-    }
+        `
+        : `
+          <div class="aiw-rank">
+            <div class="aiw-row">
+              <div>
+                <div class="aiw-row-title">Recommended services will appear here</div>
+                <p class="aiw-row-why">Fill in the fields and click “${escapeHtml(
+                  STATE.config.ctaText.replace("✨ ", "")
+                )}”.</p>
+              </div>
+              ${ringHTML(0)}
+            </div>
+          </div>
+        `;
 
     resultsCard.innerHTML = `
-      <h3>${logoHtml} Recommended services</h3>
+      <h3>Recommended services</h3>
       ${bodyHtml}
       ${STATE.lastError ? `<div class="aiw-error">${escapeHtml(STATE.lastError)}</div>` : ""}
       <div class="aiw-meta">
         <span>${escapeHtml(STATE.config.poweredByText)}</span>
-        <span>client: ${escapeHtml(STATE.client || "unknown")}</span>
+        <span>client: ${escapeHtml(STATE.client || "demo")}</span>
       </div>
     `;
 
     document.body.appendChild(resultsCard);
-
     applyBranding(STATE.branding);
 
-    // Events
     qs("aiw-close").addEventListener("click", close);
     pill.addEventListener("click", (e) => e.stopPropagation());
     resultsCard.addEventListener("click", (e) => e.stopPropagation());
-
     qs("aiw-cta").addEventListener("click", onSubmit);
 
     const toggle = qs("aiw-why-toggle");
@@ -513,9 +447,32 @@ console.log("✅ AIWidget loaded");
     render();
   }
 
-  // -----------------------------
-  // Submit -> API ✅ onSubmit()
-  // -----------------------------
+  // ✅ supports BOTH old and new backend response formats
+  function normalizeResponse(data) {
+    // New format preferred:
+    if (Array.isArray(data?.ranked_services) && data.ranked_services.length) {
+      return data.ranked_services.map((x) => ({
+        service: x.service,
+        score: Number(x.score ?? 0),
+        why: x.why || "",
+      }));
+    }
+
+    // Old format fallback:
+    if (Array.isArray(data?.recommended_services) && data.recommended_services.length) {
+      // Give descending scores (fake but pretty UI until backend supports real ranking)
+      const base = 88;
+      const step = 8;
+      return data.recommended_services.map((service, i) => ({
+        service,
+        score: Math.max(40, base - i * step),
+        why: "", // no why available in old format
+      }));
+    }
+
+    return [];
+  }
+
   async function onSubmit() {
     if (STATE.isLoading) return;
 
@@ -561,12 +518,16 @@ console.log("✅ AIWidget loaded");
         throw new Error(msg);
       }
 
-      STATE.client = data.client || "";
+      STATE.client = data.client || STATE.client || "demo";
       STATE.branding = data.branding || null;
 
-      // ✅ expects: ranked_services: [{service, score, why}]
-      STATE.ranked = Array.isArray(data.ranked_services) ? data.ranked_services : [];
-      if (!STATE.ranked.length) STATE.lastError = "No recommendations returned.";
+      STATE.ranked = normalizeResponse(data);
+
+      if (!STATE.ranked.length) {
+        STATE.lastError = "No recommendations returned.";
+      } else {
+        STATE.lastError = "";
+      }
     } catch (err) {
       STATE.ranked = [];
       STATE.lastError = err?.message || "Request failed.";
