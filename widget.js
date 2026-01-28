@@ -6,7 +6,7 @@ console.log("✅ AIWidget loaded");
     apiKey: "cust_demo_123", // change per customer
     buttonText: "AI Recommender",
     ctaText: "✨ Recommend services?",
-    poweredByText: "Powered by AI Tamed AI",
+    poweredByText: "Powered by Tamed AI",
     position: "top",
   };
 
