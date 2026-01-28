@@ -5,8 +5,8 @@ console.log("✅ AIWidget loaded");
     apiBase: "https://ai-widget-backend.onrender.com",
     apiKey: "cust_demo_123", // change per customer
     buttonText: "AI Recommender",
-    ctaText: "✨ Why attend?",
-    poweredByText: "Powered by AI Widget",
+    ctaText: "✨ Recommend services?",
+    poweredByText: "Powered by AI Tamed AI",
     position: "top",
   };
 
