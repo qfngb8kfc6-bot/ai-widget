@@ -1,221 +1,418 @@
+console.log("✅ AIWidget loaded");
+
 (function () {
   const DEFAULTS = {
-    apiBase: "https://YOUR-BACKEND.com", // <- change this
-    apiKey: "cust_demo_123",             // <- change per customer
-    buttonText: "Find my best services",
-    position: "bottom-right",            // bottom-right | bottom-left | top-right | top-left
-    theme: "dark",                       // dark | light
+    apiBase: "https://ai-widget-backend.onrender.com",
+    apiKey: "cust_demo_123",
+    buttonText: "AI Recommender",
+    ctaText: "✨ Recommend services?",
+    poweredByText: "Powered by AI Widget",
+    position: "top",
   };
 
   const STATE = {
     isOpen: false,
     isLoading: false,
     lastError: "",
-    recommendations: [],
-    host: {
-      url: window.location.href,
-      title: document.title || "",
-      // optional: take some visible text for extra accuracy (kept small)
-      textHint: "",
-    },
+    ranked: [],
+    showWhy: false,
+    client: "",
+    branding: null,
     config: { ...DEFAULTS },
   };
 
-  function getHostTextHint(maxChars = 1200) {
-    // Extract a small amount of visible text from the page
-    const bodyText = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
-    if (!bodyText) return "";
-    return bodyText.slice(0, maxChars);
-  }
-
-  function mountConfigFromGlobal() {
-    // Allow website to set window.AIWidgetConfig = { ... }
-    const c = window.AIWidgetConfig || {};
-    STATE.config = { ...STATE.config, ...c };
-  }
-
+  /* ------------------ STYLES ------------------ */
   function injectStyles() {
     if (document.getElementById("aiw-styles")) return;
 
-    const isDark = STATE.config.theme === "dark";
-    const bg = isDark ? "#111" : "#fff";
-    const fg = isDark ? "#fff" : "#111";
-    const card = isDark ? "#1a1a1a" : "#fafafa";
-    const border = isDark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.12)";
-    const muted = isDark ? "rgba(255,255,255,.75)" : "rgba(0,0,0,.65)";
-
     const css = `
-      .aiw-btn{position:fixed;z-index:999999;border:0;border-radius:999px;padding:12px 14px;font:14px/1.2 system-ui;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.25);background:${bg};color:${fg}}
-      .aiw-bottom-right{right:18px;bottom:18px}
-      .aiw-bottom-left{left:18px;bottom:18px}
-      .aiw-top-right{right:18px;top:18px}
-      .aiw-top-left{left:18px;top:18px}
+      :root {
+        --pill1:#1e50a0;
+        --pill2:#28aabe;
+        --btn:#0b1020;
+      }
 
-      .aiw-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999998;display:flex;align-items:flex-end;justify-content:flex-end;padding:18px}
-      .aiw-modal{width:min(440px, 92vw);background:${bg};color:${fg};border-radius:16px;padding:14px 14px 12px;font:14px system-ui;box-shadow:0 10px 28px rgba(0,0,0,.3);border:1px solid ${border}}
-      .aiw-row{display:flex;gap:8px;align-items:center}
-      .aiw-title{font-weight:800;margin:0}
-      .aiw-muted{color:${muted};margin:8px 0 0}
-      .aiw-close{margin-left:auto;background:transparent;border:0;font-size:18px;cursor:pointer;color:${fg}}
-      .aiw-input{width:100%;padding:10px 12px;border:1px solid ${border};border-radius:12px;font:14px system-ui;background:transparent;color:${fg};outline:none}
-      .aiw-primary{background:${fg};color:${bg};border:0;border-radius:12px;padding:10px 12px;cursor:pointer;font-weight:700}
-      .aiw-error{color:#ff6b6b;margin-top:10px}
-      .aiw-loading{margin-top:10px;color:${muted}}
-      .aiw-card{border:1px solid ${border};border-radius:14px;padding:10px 10px;margin-top:10px;background:${card}}
-      .aiw-card h4{margin:0 0 6px;font-size:14px}
-      .aiw-card ul{margin:0;padding-left:18px}
-      .aiw-card li{margin:6px 0;color:${muted}}
-      .aiw-link{display:inline-block;margin-top:8px;color:${fg};text-decoration:underline}
+      .aiw-launcher{
+        position:fixed; right:22px; bottom:22px;
+        border:0; padding:12px 16px;
+        border-radius:999px;
+        background:#0b1020; color:#fff;
+        cursor:pointer; z-index:2147483647;
+        font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+        box-shadow:0 18px 50px rgba(0,0,0,.12);
+      }
+
+      .aiw-backdrop{
+        position:fixed; inset:0;
+        backdrop-filter:blur(10px);
+        -webkit-backdrop-filter:blur(10px);
+        background:rgba(0,0,0,.08);
+        opacity:0; pointer-events:none;
+        transition:.2s; z-index:2147483646;
+      }
+      .aiw-backdrop.open{ opacity:1; pointer-events:auto; }
+
+      .aiw-pill{
+        position:fixed; left:50%; transform:translateX(-50%);
+        top:90px;
+        width:min(1100px,calc(100vw - 40px));
+        background:linear-gradient(90deg,var(--pill1),var(--pill2));
+        padding:18px; border-radius:999px;
+        display:flex; gap:12px; align-items:center;
+        z-index:2147483647;
+        box-shadow:0 30px 70px rgba(0,0,0,.18);
+      }
+
+      .aiw-input{
+        flex:1;
+        padding:14px 16px;
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,.25);
+        background:rgba(245,247,255,.95);
+        font-weight:600;
+        outline:none;
+      }
+
+      .aiw-cta{
+        padding:14px 20px;
+        border-radius:999px;
+        border:0;
+        background:var(--btn);
+        color:#fff;
+        font-weight:800;
+        cursor:pointer;
+        display:inline-flex;
+        align-items:center;
+        gap:10px;
+        white-space:nowrap;
+      }
+      .aiw-cta:disabled{ opacity:.6; cursor:not-allowed; }
+
+      .aiw-close{
+        width:44px; height:44px;
+        border-radius:999px;
+        border:0;
+        background:rgba(255,255,255,.14);
+        color:#fff;
+        font-size:20px;
+        cursor:pointer;
+      }
+
+      .aiw-results{
+        position:fixed;
+        top:170px;
+        left:50%;
+        transform:translateX(-50%);
+        width:min(1100px,calc(100vw - 40px));
+        background:rgba(255,255,255,.92);
+        border-radius:18px;
+        padding:18px;
+        box-shadow:0 20px 60px rgba(0,0,0,.15);
+        z-index:2147483647;
+      }
+
+      .aiw-row{
+        display:flex;
+        align-items:flex-start;
+        gap:14px;
+        padding:12px 0;
+        border-bottom:1px solid #eee;
+      }
+
+      .aiw-ringWrap{
+        width:48px;
+        height:48px;
+        position:relative;
+        flex:0 0 48px;
+      }
+
+      .aiw-ring{
+        width:48px;
+        height:48px;
+      }
+
+      .aiw-ring circle{
+        fill:none;
+        stroke-width:6;
+      }
+
+      .aiw-ring .bg{ stroke:#e9e9e9; }
+
+      .aiw-ring .fg{
+        stroke:#2ecc71;
+        stroke-linecap:round;
+        transform:rotate(-90deg);
+        transform-origin:50% 50%;
+      }
+
+      .aiw-score{
+        position:absolute;
+        inset:0;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:12px;
+        font-weight:900;
+        color:#0b1020;
+      }
+
+      .aiw-service{
+        font-weight:900;
+        color:#0b1020;
+      }
+
+      .aiw-why{
+        margin-top:6px;
+        font-size:13px;
+        color:#4b5563;
+        line-height:1.35;
+      }
+
+      .aiw-toggle{
+        margin-top:12px;
+        font-weight:800;
+        cursor:pointer;
+        color:#1e50a0;
+        user-select:none;
+      }
+
+      .aiw-error{
+        margin-top:10px;
+        color:#b00020;
+        font-weight:800;
+        font-size:13px;
+      }
+
+      .aiw-meta{
+        display:flex;
+        justify-content:space-between;
+        margin-top:10px;
+        font-size:12px;
+        color:#6b7280;
+        font-weight:700;
+      }
+
+      .aiw-spinner{
+        width:16px; height:16px;
+        border:2px solid rgba(255,255,255,.35);
+        border-top-color:rgba(255,255,255,.95);
+        border-radius:999px;
+        animation:aiwspin .8s linear infinite;
+      }
+      @keyframes aiwspin{ to { transform:rotate(360deg);} }
+
+      @media (max-width: 880px){
+        .aiw-pill{ border-radius:26px; flex-wrap:wrap; }
+        .aiw-input{ flex:1 1 260px; }
+        .aiw-cta{ flex:1 1 220px; justify-content:center; }
+      }
     `;
-
-    const style = document.createElement("style");
-    style.id = "aiw-styles";
-    style.textContent = css;
-    document.head.appendChild(style);
+    const s = document.createElement("style");
+    s.id = "aiw-styles";
+    s.textContent = css;
+    document.head.appendChild(s);
   }
 
-  function el(tag, attrs = {}, children = []) {
-    const e = document.createElement(tag);
-    Object.entries(attrs).forEach(([k, v]) => {
-      if (k === "class") e.className = v;
-      else if (k === "style") Object.assign(e.style, v);
-      else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
-      else e.setAttribute(k, v);
-    });
-    children.forEach((c) => e.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
-    return e;
-  }
+  /* ------------------ DOM ------------------ */
+  function qs(id) { return document.getElementById(id); }
 
-  async function postJSON(path, body) {
-    const res = await fetch(STATE.config.apiBase + path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error || "Request failed");
-    return json;
-  }
+  function ensureDOM() {
+    injectStyles();
 
-  function renderModal() {
-    const input = el("input", {
-      class: "aiw-input",
-      placeholder: "Enter your website URL (e.g. https://yourbusiness.com)",
-      type: "url",
-    });
+    if (!qs("aiw-launcher")) {
+      const b = document.createElement("button");
+      b.id = "aiw-launcher";
+      b.className = "aiw-launcher";
+      b.textContent = STATE.config.buttonText;
+      b.onclick = open;
+      document.body.appendChild(b);
+    }
 
-    const closeBtn = el("button", { class: "aiw-close", onclick: () => backdrop.remove() }, ["×"]);
-
-    const header = el("div", { class: "aiw-row" }, [
-      el("div", {}, [el("div", { class: "aiw-title" }, ["Service recommendations"])]),
-      closeBtn,
-    ]);
-
-    const subtitle = el("p", { class: "aiw-muted" }, [
-      "We’ll compare this page (host site) with your URL to recommend services that fit you — and explain why.",
-    ]);
-
-    const status = el("div", { class: "aiw-loading" }, [""]);
-    const results = el("div");
-
-    const goBtn = el("button", {
-      class: "aiw-primary",
-      onclick: async () => {
-        results.innerHTML = "";
-        status.textContent = "";
-        status.className = "aiw-loading";
-
-        const userUrl = (input.value || "").trim();
-        if (!userUrl) {
-          status.className = "aiw-error";
-          status.textContent = "Please enter a URL.";
-          return;
-        }
-
-        status.textContent = "Analyzing both pages…";
-
-        try {
-          const data = await postJSON("/analyze", {
-            apiKey: STATE.config.apiKey,
-            hostUrl: STATE.host.url,
-            hostTextHint: STATE.host.textHint,
-            userUrl,
-          });
-
-          status.textContent = "";
-
-          const recs = data.recommendations || [];
-          if (!recs.length) {
-            results.appendChild(
-              el("div", { class: "aiw-card" }, [
-                el("h4", {}, ["No strong matches found"]),
-                el("div", { class: "aiw-muted" }, [
-                  "Try another URL or add more services/keywords in your backend catalog.",
-                ]),
-              ])
-            );
-            return;
-          }
-
-          recs.forEach((r) => {
-            const card = el("div", { class: "aiw-card" }, [
-              el("h4", {}, [`${r.name} (Fit: ${r.fitScore}%)`]),
-              el("ul", {}, (r.why || []).map((w) => el("li", {}, [w]))),
-              r.ctaUrl
-                ? el("a", { class: "aiw-link", href: r.ctaUrl, target: "_blank", rel: "noopener" }, ["View service"])
-                : el("span"),
-            ]);
-            results.appendChild(card);
-          });
-        } catch (e) {
-          status.className = "aiw-error";
-          status.textContent = e.message || "Something went wrong.";
-        }
-      },
-    }, ["Recommend"]);
-
-    const row = el("div", { class: "aiw-row" }, [input, goBtn]);
-
-    const modal = el("div", { class: "aiw-modal" }, [header, subtitle, row, status, results]);
-
-    const backdrop = el("div", {
-      class: "aiw-backdrop",
-      onclick: (e) => { if (e.target === backdrop) backdrop.remove(); },
-    }, [modal]);
-
-    document.body.appendChild(backdrop);
-  }
-
-  function getPositionClass() {
-    switch (STATE.config.position) {
-      case "bottom-left": return "aiw-bottom-left";
-      case "top-right": return "aiw-top-right";
-      case "top-left": return "aiw-top-left";
-      case "bottom-right":
-      default: return "aiw-bottom-right";
+    if (!qs("aiw-backdrop")) {
+      const d = document.createElement("div");
+      d.id = "aiw-backdrop";
+      d.className = "aiw-backdrop";
+      d.onclick = close;
+      document.body.appendChild(d);
     }
   }
 
-  function init() {
-    mountConfigFromGlobal();
-
-    // host context
-    STATE.host.textHint = getHostTextHint();
-
-    injectStyles();
-
-    const btn = el("button", { class: `aiw-btn ${getPositionClass()}`, onclick: renderModal }, [
-      STATE.config.buttonText,
-    ]);
-
-    document.body.appendChild(btn);
-
-    console.log("✅ AIWidget loaded", {
-      hostUrl: STATE.host.url,
-      hostTitle: STATE.host.title,
-    });
+  function applyBranding() {
+    const b = STATE.branding;
+    if (!b) return;
+    if (b.grad1) document.documentElement.style.setProperty("--pill1", b.grad1);
+    if (b.grad2) document.documentElement.style.setProperty("--pill2", b.grad2);
+    if (b.primary) document.documentElement.style.setProperty("--btn", b.primary);
+    if (b.name) STATE.config.poweredByText = `Powered by ${b.name}`;
   }
 
-  init();
-})();
+  /* ------------------ RENDER ------------------ */
+  function render() {
+    ensureDOM();
 
+    ["aiw-pill","aiw-results"].forEach(id => qs(id)?.remove());
+    qs("aiw-backdrop").classList.toggle("open", STATE.isOpen);
+    if (!STATE.isOpen) return;
+
+    const pill = document.createElement("div");
+    pill.id = "aiw-pill";
+    pill.className = "aiw-pill";
+    pill.innerHTML = `
+      <input id="w-url" class="aiw-input" placeholder="Website URL">
+      <input id="w-ind" class="aiw-input" placeholder="Industry">
+      <input id="w-goal" class="aiw-input" placeholder="Goal">
+      <button class="aiw-cta" id="w-cta" ${STATE.isLoading ? "disabled" : ""}>
+        ${STATE.isLoading ? `<span class="aiw-spinner"></span> Analysing...` : STATE.config.ctaText}
+      </button>
+      <button class="aiw-close" id="w-close">×</button>
+    `;
+    document.body.appendChild(pill);
+
+    pill.addEventListener("click", (e) => e.stopPropagation());
+    qs("w-close").onclick = close;
+    qs("w-cta").onclick = submit;
+
+    const card = document.createElement("div");
+    card.id = "aiw-results";
+    card.className = "aiw-results";
+
+    let html = `<h3 style="margin:0 0 10px;font-weight:900;">Recommended services</h3>`;
+
+    if (!STATE.ranked.length && !STATE.lastError) {
+      html += `<div style="font-weight:700;color:#374151;">Fill in the fields and click “Recommend services?”.</div>`;
+    }
+
+    if (STATE.ranked.length) {
+      STATE.ranked.forEach(r => {
+        const score = Number(r.score || 0);
+        const radius = 20;
+        const circ = 2 * Math.PI * radius;
+        const dash = (score / 100) * circ;
+
+        html += `
+          <div class="aiw-row">
+            <div class="aiw-ringWrap">
+              <svg class="aiw-ring" viewBox="0 0 48 48">
+                <circle class="bg" cx="24" cy="24" r="${radius}"></circle>
+                <circle class="fg" cx="24" cy="24" r="${radius}"
+                  stroke-dasharray="${dash} ${Math.max(0, circ - dash)}"></circle>
+              </svg>
+              <div class="aiw-score">${score}%</div>
+            </div>
+            <div style="flex:1;">
+              <div class="aiw-service">${escapeHtml(r.service)}</div>
+              ${STATE.showWhy && r.why ? `<div class="aiw-why">${escapeHtml(r.why)}</div>` : ``}
+            </div>
+          </div>
+        `;
+      });
+
+      html += `<div class="aiw-toggle" id="aiw-toggle">${STATE.showWhy ? "Hide why" : "Why these?"}</div>`;
+    }
+
+    if (STATE.lastError) {
+      html += `<div class="aiw-error">${escapeHtml(STATE.lastError)}</div>`;
+    }
+
+    html += `
+      <div class="aiw-meta">
+        <span>${escapeHtml(STATE.config.poweredByText)}</span>
+        <span>client: ${escapeHtml(STATE.client || "demo")}</span>
+      </div>
+    `;
+
+    card.innerHTML = html;
+    document.body.appendChild(card);
+    card.addEventListener("click", (e) => e.stopPropagation());
+
+    document.getElementById("aiw-toggle")?.addEventListener("click", () => {
+      STATE.showWhy = !STATE.showWhy;
+      render();
+    });
+
+    applyBranding();
+  }
+
+  function escapeHtml(str) {
+    return String(str || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  /* ------------------ LOGIC ------------------ */
+  function open() { STATE.isOpen = true; STATE.lastError = ""; render(); }
+  function close() { STATE.isOpen = false; render(); }
+
+  async function submit() {
+    if (STATE.isLoading) return;
+
+    const website_url = (qs("w-url").value || "").trim();
+    const industry = (qs("w-ind").value || "").trim();
+    const goal = (qs("w-goal").value || "").trim();
+
+    if (!website_url || !industry || !goal) {
+      STATE.lastError = "Please fill in Website URL, Industry and Goal.";
+      STATE.ranked = [];
+      render();
+      return;
+    }
+
+    // ✅ THIS is the host page the widget is embedded on
+    const host_url = window.location.href;
+
+    STATE.isLoading = true;
+    STATE.lastError = "";
+    render();
+
+    try {
+      const res = await fetch(`${STATE.config.apiBase}/recommend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${STATE.config.apiKey}`,
+        },
+        body: JSON.stringify({ website_url, host_url, industry, goal }),
+      });
+
+      const text = await res.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+
+      if (!res.ok) {
+        const msg =
+          (data && data.detail && (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))) ||
+          `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+
+      STATE.client = data.client || "";
+      STATE.branding = data.branding || null;
+      STATE.ranked = Array.isArray(data.ranked_services) ? data.ranked_services : [];
+
+      if (!STATE.ranked.length) {
+        STATE.lastError = "No recommendations returned (backend returned an empty list).";
+      }
+    } catch (e) {
+      STATE.ranked = [];
+      STATE.lastError = e?.message || "Request failed.";
+    } finally {
+      STATE.isLoading = false;
+      render();
+    }
+  }
+
+  /* ------------------ PUBLIC API ------------------ */
+  window.AIWidget = {
+    init(cfg = {}) {
+      STATE.config = { ...DEFAULTS, ...cfg };
+      ensureDOM();
+    },
+    open,
+    close,
+  };
+
+  ensureDOM();
+})();
