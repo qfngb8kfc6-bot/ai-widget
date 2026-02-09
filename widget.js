@@ -181,6 +181,7 @@ console.log("✅ AIWidget loaded");
         color:#b00020;
         font-weight:800;
         font-size:13px;
+        white-space:pre-wrap;
       }
 
       .aiw-meta{
@@ -284,7 +285,7 @@ console.log("✅ AIWidget loaded");
 
     if (STATE.ranked.length) {
       STATE.ranked.forEach(r => {
-        const score = Number(r.score || 0);
+        const score = Math.max(0, Math.min(100, Number(r.score || 0)));
         const radius = 20;
         const circ = 2 * Math.PI * radius;
         const dash = (score / 100) * circ;
@@ -343,8 +344,16 @@ console.log("✅ AIWidget loaded");
   }
 
   /* ------------------ LOGIC ------------------ */
-  function open() { STATE.isOpen = true; STATE.lastError = ""; render(); }
-  function close() { STATE.isOpen = false; render(); }
+  function open() {
+    STATE.isOpen = true;
+    STATE.lastError = "";
+    render();
+  }
+
+  function close() {
+    STATE.isOpen = false;
+    render();
+  }
 
   async function submit() {
     if (STATE.isLoading) return;
@@ -360,8 +369,8 @@ console.log("✅ AIWidget loaded");
       return;
     }
 
-    // ✅ THIS is the host page the widget is embedded on
-    const host_url = window.location.href;
+    // ✅ send the HOST ORIGIN (best for backend fetching)
+    const host_url = window.location.origin;
 
     STATE.isLoading = true;
     STATE.lastError = "";
@@ -377,9 +386,11 @@ console.log("✅ AIWidget loaded");
         body: JSON.stringify({ website_url, host_url, industry, goal }),
       });
 
-      const text = await res.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      const raw = await res.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { raw }; }
+
+      console.log("🔎 /recommend response:", res.status, data);
 
       if (!res.ok) {
         const msg =
@@ -390,10 +401,15 @@ console.log("✅ AIWidget loaded");
 
       STATE.client = data.client || "";
       STATE.branding = data.branding || null;
+
+      // ✅ IMPORTANT: backend returns ranked_services
       STATE.ranked = Array.isArray(data.ranked_services) ? data.ranked_services : [];
 
       if (!STATE.ranked.length) {
-        STATE.lastError = "No recommendations returned (backend returned an empty list).";
+        // show helpful debugging info if backend sent it
+        const sig = data.signals ? `signals=${JSON.stringify(data.signals)}` : "";
+        const host = data.host_services_detected ? `host_services=${JSON.stringify(data.host_services_detected)}` : "";
+        STATE.lastError = `No recommendations returned.\n${sig}\n${host}`.trim();
       }
     } catch (e) {
       STATE.ranked = [];
